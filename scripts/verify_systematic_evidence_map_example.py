@@ -7,7 +7,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 
 import pandas as pd
 
@@ -57,7 +57,7 @@ COUNTRY_FIELD = "design.countries"
 def _as_list(value: object) -> list[str]:
     """Split pipe-delimited cell values into a list of trimmed strings."""
 
-    if pd.isna(value):
+    if pd.isna(value):  # type: ignore[arg-type]
         return []
     return [item.strip() for item in str(value).split("|") if item.strip()]
 
