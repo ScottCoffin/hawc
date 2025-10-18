@@ -5,4 +5,4 @@ The Health Assessment Workspace Collaborative (HAWC) is a website designed to ca
 
 ## Additional Documentation
 
-- [Systematic Evidence Map Intake](docs/systematic_evidence_map_intake.md) – Guidance for preparing and importing interoperable systematic evidence map data through the epidemiology v2 module, including a validated example spreadsheet and verification script.
+- [Systematic Evidence Map Intake](docs/systematic_evidence_map_intake.md) – Guidance for preparing and importing interoperable systematic evidence map data through the epidemiology v2 module, including a multi-row example spreadsheet (with intentionally invalid cases) and a verification script.

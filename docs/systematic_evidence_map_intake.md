@@ -44,7 +44,7 @@ The serializers enforce that related objects (chemicals, exposures, outcomes, et
 
 ## Example Spreadsheet
 
-The repository includes [`docs/systematic_evidence_map_example.csv`](systematic_evidence_map_example.csv), which demonstrates how to stage a single row of intake-ready content. Each column matches the payload field used by the epiv2 REST endpoints and multi-valued cells are pipe-delimited (for example, `Adults|Pregnant women`). Replace the placeholder study ID and identifiers with records that exist in your assessment before posting the data.
+The repository includes [`docs/systematic_evidence_map_example.csv`](systematic_evidence_map_example.csv), which now contains ten illustrative rows. Seven rows provide interoperable examples spanning different study designs, exposure metrics, and health outcomes. Three additional rows intentionally include problems (an invalid sex descriptor, malformed country codes, and a non-numeric effect estimate) so you can see how the validator responds to common mistakes. Each column matches the payload field used by the epiv2 REST endpoints and multi-valued cells are pipe-delimited (for example, `Adults|Pregnant women`). Replace the placeholder study ID and identifiers with records that exist in your assessment before posting the data.
 
 Run the helper script to validate and normalize the CSV:
 
@@ -52,7 +52,7 @@ Run the helper script to validate and normalize the CSV:
 python scripts/verify_systematic_evidence_map_example.py
 ```
 
-The script checks enumerated values against the epiv2 vocabularies, ensures numeric fields contain numbers, and emits an ordered set of request bodies showing how each row maps to the Design, Chemical, Exposure, ExposureLevel, Outcome, AdjustmentFactor, and DataExtraction endpoints.
+The script checks enumerated values against the epiv2 vocabularies, ensures numeric fields contain numbers, and emits an ordered set of request bodies showing how each row maps to the Design, Chemical, Exposure, ExposureLevel, Outcome, AdjustmentFactor, and DataExtraction endpoints. When any issues are encountered, the output includes a `validation_errors` section describing every failing row and the process exits with a non-zero status so problems are easy to spot. Fix or remove the failing examples to confirm that the remaining records are ready for import.
 
 ## Verifying Interoperability
 

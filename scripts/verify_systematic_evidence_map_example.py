@@ -255,15 +255,20 @@ def _validate_row(row: dict, index: int) -> dict:
     }
 
 
-def validate_spreadsheet(path: Path) -> list[dict]:
+def validate_spreadsheet(path: Path) -> tuple[list[dict], list[str]]:
     """Validate and normalize the provided spreadsheet."""
 
     df = pd.read_csv(path, dtype=str).fillna("")
     normalized_records: list[dict] = []
+    errors: list[str] = []
     for index, row in df.iterrows():
-        record = _validate_row(row.to_dict(), index)
-        normalized_records.append(record)
-    return normalized_records
+        try:
+            record = _validate_row(row.to_dict(), index)
+        except ValueError as exc:
+            errors.append(str(exc))
+        else:
+            normalized_records.append(record)
+    return normalized_records, errors
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -277,8 +282,18 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Spreadsheet not found: {csv_path}", file=sys.stderr)
         return 1
 
-    records = validate_spreadsheet(csv_path)
-    print(json.dumps({"records": records, "rows_validated": len(records)}, indent=2))
+    records, errors = validate_spreadsheet(csv_path)
+    result = {"records": records, "rows_validated": len(records)}
+    if errors:
+        result["validation_errors"] = errors
+        print(json.dumps(result, indent=2))
+        print(
+            f"Validation failed for {len(errors)} row(s); see JSON output for details.",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(json.dumps(result, indent=2))
     return 0
 
 
