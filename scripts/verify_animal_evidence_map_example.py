@@ -106,7 +106,7 @@ def _clean_payload(data: dict) -> dict:
     return {key: value for key, value in data.items() if value is not None}
 
 
-def _parse_doses(raw: object) -> tuple[list[dict[str, Any]], int]:
+def _parse_doses(raw: object) -> tuple[list[dict[str, Any]], int, list[dict[str, Any]]]:
     if raw in ("", None) or (isinstance(raw, float) and pd.isna(raw)):
         raise ValueError("dosing_regime.doses is required and must be JSON encoded")
     try:
@@ -118,13 +118,25 @@ def _parse_doses(raw: object) -> tuple[list[dict[str, Any]], int]:
         raise ValueError("dosing_regime.doses must be a non-empty list")
 
     dose_lists: list[list[float]] = []
-    dose_units_ids: list[int] = []
+    unit_infos: list[dict[str, Any]] = []
     for index, entry in enumerate(parsed):
         if not isinstance(entry, dict):
             raise ValueError(f"dosing_regime.doses[{index}] must be an object")
-        if "dose_units_id" not in entry:
-            raise ValueError(f"dosing_regime.doses[{index}] missing dose_units_id")
-        dose_units_ids.append(_as_int(entry["dose_units_id"], "dose_units_id"))
+        raw_unit_id = entry.get("dose_units_id")
+        unit_id: int | None = None
+        if raw_unit_id not in ("", None):
+            unit_id = _as_int(raw_unit_id, "dose_units_id")
+
+        unit_name_raw = entry.get("dose_units_name")
+        unit_name = unit_name_raw.strip() if isinstance(unit_name_raw, str) else None
+        if unit_name == "":
+            unit_name = None
+
+        if unit_id is None and unit_name is None:
+            raise ValueError(
+                f"dosing_regime.doses[{index}] must define dose_units_id or dose_units_name"
+            )
+        unit_infos.append({"id": unit_id, "name": unit_name})
         doses = entry.get("doses")
         if not isinstance(doses, list) or not doses:
             raise ValueError(
@@ -147,16 +159,16 @@ def _parse_doses(raw: object) -> tuple[list[dict[str, Any]], int]:
     num_groups = counts.pop()
     doses_payload: list[dict[str, Any]] = []
     for dose_group_id in range(num_groups):
-        for unit_index, unit_id in enumerate(dose_units_ids):
+        for unit_index, unit_info in enumerate(unit_infos):
             doses_payload.append(
                 {
                     "dose_group_id": dose_group_id,
-                    "dose_units_id": unit_id,
+                    "dose_units_id": unit_info["id"],
                     "dose": dose_lists[unit_index][dose_group_id],
                 }
             )
 
-    return doses_payload, num_groups
+    return doses_payload, num_groups, unit_infos
 
 
 def _parse_groups(raw: object, *, num_dose_groups: int) -> list[dict[str, Any]]:
@@ -251,13 +263,45 @@ def _validate_row(row: dict[str, Any], index: int) -> dict[str, Any]:
         except ValueError as exc:
             errors.append(str(exc))
 
+    lookups: dict[str, Any] = {"animal_group": {}, "dosing_regime": {}}
+
     try:
         study_id = _as_int(row.get("experiment.study_id"), "experiment.study_id")
-        species_id = _as_int(row.get("animal_group.species_id"), "animal_group.species_id")
-        strain_id = _as_int(row.get("animal_group.strain_id"), "animal_group.strain_id")
     except ValueError as exc:
         errors.append(str(exc))
-        study_id = species_id = strain_id = None
+        study_id = None
+
+    species_id: int | None = None
+    species_name_raw = row.get("animal_group.species_name")
+    species_name = species_name_raw.strip() if isinstance(species_name_raw, str) else None
+    if species_name == "":
+        species_name = None
+    if species_name:
+        lookups["animal_group"]["species_name"] = species_name
+    raw_species_id = row.get("animal_group.species_id")
+    if raw_species_id not in ("", None):
+        try:
+            species_id = _as_int(raw_species_id, "animal_group.species_id")
+        except ValueError as exc:
+            errors.append(str(exc))
+            species_id = None
+    elif not species_name:
+        errors.append("animal_group.species_id or animal_group.species_name is required")
+
+    strain_id: int | None = None
+    strain_name_raw = row.get("animal_group.strain_name")
+    strain_name = strain_name_raw.strip() if isinstance(strain_name_raw, str) else None
+    if strain_name == "":
+        strain_name = None
+    if strain_name:
+        lookups["animal_group"]["strain_name"] = strain_name
+    raw_strain_id = row.get("animal_group.strain_id")
+    if raw_strain_id not in ("", None):
+        try:
+            strain_id = _as_int(raw_strain_id, "animal_group.strain_id")
+        except ValueError as exc:
+            errors.append(str(exc))
+            strain_id = None
 
     float_fields = {
         "experiment.purity": "experiment.purity",
@@ -276,11 +320,14 @@ def _validate_row(row: dict[str, Any], index: int) -> dict[str, Any]:
 
     # parse doses
     try:
-        doses, num_dose_groups = _parse_doses(row.get("dosing_regime.doses"))
+        doses, num_dose_groups, dose_unit_infos = _parse_doses(row.get("dosing_regime.doses"))
     except ValueError as exc:
         errors.append(str(exc))
         doses = []
         num_dose_groups = 0
+        dose_unit_infos = []
+    else:
+        lookups["dosing_regime"]["dose_units"] = dose_unit_infos
 
     # parse endpoint groups
     try:
@@ -442,6 +489,7 @@ def _validate_row(row: dict[str, Any], index: int) -> dict[str, Any]:
         "animal_group": animal_group_payload,
         "endpoint": endpoint_payload,
         "num_dose_groups": num_dose_groups,
+        "lookups": lookups,
     }
 
 
